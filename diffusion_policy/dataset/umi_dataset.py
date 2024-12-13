@@ -23,7 +23,7 @@ from diffusion_policy.common.sampler import SequenceSampler, get_val_mask
 from diffusion_policy.dataset.base_dataset import BaseDataset
 from diffusion_policy.model.common.normalizer import LinearNormalizer
 from umi.common.pose_util import pose_to_mat, mat_to_pose10d
-
+import pdb
 register_codecs()
 
 class UmiDataset(BaseDataset):
@@ -42,6 +42,7 @@ class UmiDataset(BaseDataset):
         self.pose_repr = pose_repr
         self.obs_pose_repr = self.pose_repr.get('obs_pose_repr', 'rel')
         self.action_pose_repr = self.pose_repr.get('action_pose_repr', 'rel')
+        
         
         if cache_dir is None:
             # load into memory store
@@ -88,6 +89,7 @@ class UmiDataset(BaseDataset):
                 group=zarr.group(store)
             )
         
+        pdb.set_trace()
         self.num_robot = 0
         rgb_keys = list()
         lowdim_keys = list()

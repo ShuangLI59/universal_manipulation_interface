@@ -3,7 +3,7 @@ Usage:
 Training:
 python train.py --config-name=train_diffusion_lowdim_workspace
 """
-
+import pdb
 import sys
 # use line-buffering for both stdout and stderr
 sys.stdout = open(sys.stdout.fileno(), mode='w', buffering=1)
@@ -25,8 +25,10 @@ OmegaConf.register_new_resolver("eval", eval, replace=True)
 def main(cfg: OmegaConf):
     # resolve immediately so all the ${now:} resolvers
     # will use the same time.
+    pdb.set_trace()
     OmegaConf.resolve(cfg)
 
+    
     cls = hydra.utils.get_class(cfg._target_)
     workspace: BaseWorkspace = cls(cfg)
     workspace.run()

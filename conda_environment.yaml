@@ -1,4 +1,4 @@
-name: umi
+name: umi_new
 channels:
   - pytorch
   - nvidia

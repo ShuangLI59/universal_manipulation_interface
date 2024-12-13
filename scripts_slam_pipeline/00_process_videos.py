@@ -25,6 +25,7 @@ def main(session_dir):
         # hardcode subdirs
         input_dir = session.joinpath('raw_videos')
         output_dir = session.joinpath('demos')
+        print(input_dir, output_dir)
         
         # create raw_videos if don't exist
         if not input_dir.is_dir():

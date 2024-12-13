@@ -7,6 +7,7 @@ if __name__ == "__main__":
     sys.path.append(ROOT_DIR)
     os.chdir(ROOT_DIR)
 
+import pdb
 import os
 import hydra
 import torch
@@ -106,6 +107,7 @@ class TrainDiffusionUnetImageWorkspace(BaseWorkspace):
                 accelerator.print(f"Resuming from checkpoint {lastest_ckpt_path}")
                 self.load_checkpoint(path=lastest_ckpt_path)
 
+        pdb.set_trace()
         # configure dataset
         dataset: BaseImageDataset
         dataset = hydra.utils.instantiate(cfg.task.dataset)
