@@ -5,6 +5,10 @@ import pandas as pd
 import pdb
 import glob
 from plot_xyz import plot_fn
+import sys
+
+sys.path.append('/store/real/shuang/universal_manipulation_interface')
+from umi.common.pose_util import pose_to_mat, mat_to_pose
 from scipy.spatial.transform import Rotation
 
 ## this convert the camera trajectory from the SLAM coordinate to the ARUCO tag coordinate
@@ -38,17 +42,39 @@ os.makedirs(output_dir_xyz_plot, exist_ok=True)
 
 
 def main():
+    #######################################################################################
     # SLAM map origin to table tag transform
     tx_slam_tag = np.array(json.load(
         open(tx_slam_tag_path, 'r')
         )['tx_slam_tag']
     )
     tx_tag_slam = np.linalg.inv(tx_slam_tag)
+    #######################################################################################
+    
+    
+    #######################################################################################
+    ## convert the GoPro position to UMI gripper position
+    # tcp to camera transform
+    # all unit in meters
+    # y axis in camera frame
+    tcp_offset = 0.205
+    cam_to_center_height = 0.086 # constant for UMI
+    # optical center to mounting screw, positive is when optical center is in front of the mount
+    cam_to_mount_offset = 0.01465 # constant for GoPro Hero 9,10,11
+    cam_to_tip_offset = cam_to_mount_offset + tcp_offset
+
+    pose_cam_tcp = np.array([0, cam_to_center_height, cam_to_tip_offset, 0,0,0])
+    tx_cam_tcp = pose_to_mat(pose_cam_tcp)
+    #######################################################################################
     
     for csv_path, filetag in csv_paths.items():
         csv_df = pd.read_csv(csv_path)
         cam_pos = csv_df[['x', 'y', 'z']].to_numpy()
         cam_rot_quat_xyzw = csv_df[['q_x', 'q_y', 'q_z', 'q_w']].to_numpy()
+        
+        
+        ########################################################################
+        ## convert the camera trajectory from the SLAM coordinate to the ARUCO tag coordinate
         cam_rot = Rotation.from_quat(cam_rot_quat_xyzw)
         cam_pose = np.zeros((cam_pos.shape[0], 4, 4), dtype=np.float32)
         cam_pose[:,3,3] = 1
@@ -56,10 +82,19 @@ def main():
         cam_pose[:,:3,:3] = cam_rot.as_matrix()
         tx_slam_cam = cam_pose
         tx_tag_cam = tx_tag_slam @ tx_slam_cam
+        
+        
+        ########################################################################
+        ## convert the camera trajectory to the UMI gripper trajectory
+        # transform to tcp frame
+        tx_tag_tcp = tx_tag_cam @ tx_cam_tcp
+        # pose_tag_tcp = mat_to_pose(tx_tag_tcp)
+        
+
 
         # Extract the transformed position and orientation
-        new_cam_pos = tx_tag_cam[:, :3, 3]
-        new_cam_rot = Rotation.from_matrix(tx_tag_cam[:, :3, :3])
+        new_cam_pos = tx_tag_tcp[:, :3, 3]
+        new_cam_rot = Rotation.from_matrix(tx_tag_tcp[:, :3, :3])
         new_cam_rot_quat = new_cam_rot.as_quat()  # Output is [q_x, q_y, q_z, q_w]
 
         # Prepare the new DataFrame
