@@ -1,6 +1,7 @@
 # %%
 import sys
 import os
+from scipy.spatial.transform import Rotation as R
 
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(ROOT_DIR)
@@ -18,6 +19,7 @@ import av
 import multiprocessing
 import concurrent.futures
 from tqdm import tqdm
+import pdb
 from collections import defaultdict
 from umi.common.cv_util import (
     parse_fisheye_intrinsics,
@@ -29,7 +31,13 @@ from umi.common.cv_util import (
 )
 from diffusion_policy.common.replay_buffer import ReplayBuffer
 from diffusion_policy.codecs.imagecodecs_numcodecs import register_codecs, JpegXl
+
+from slam_mocap.convert_mocap_to_aruco import get_mocap_plan
+from slam_mocap.plot_xyz import plot_fn
+
 register_codecs()
+
+
 
 
 # %%
@@ -49,6 +57,8 @@ def main(input, output, out_res, out_fov, compression_level,
             pass
         
     out_res = tuple(int(x) for x in out_res.split(','))
+
+    
 
     if num_workers is None:
         num_workers = multiprocessing.cpu_count()
@@ -86,11 +96,42 @@ def main(input, output, out_res, out_fov, compression_level,
             continue
         
         plan = pickle.load(plan_path.open('rb'))
+        rpy = R.from_rotvec(plan[0]['grippers'][0]['tcp_pose'][0][3:])
+        rpy.as_euler("xyz")
+        ################################################################################################################################
+        mocap_plan = get_mocap_plan()
+        del plan[9]
+        assert len(plan) == len(mocap_plan)    
+        ################################################################################################################################
         
         videos_dict = defaultdict(list)
-        for plan_episode in plan:
+        for idx, plan_episode in enumerate(plan):
             grippers = plan_episode['grippers']
             
+            #####################################################
+            grippers_mocap = mocap_plan[idx]['grippers']
+            #####################################################
+            # check data
+            print(grippers[0]['tcp_pose'])
+            print(grippers_mocap[0]['tcp_pose'])
+            
+            plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,0], filetag=f'0_1219_{idx}_mocap_X_Coordinate', y_min=-0.5, y_max=0.5, color='blue')
+            plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,1], filetag=f'0_1219_{idx}_mocap_Y_Coordinate', y_min=-0.4, y_max=-0.1, color='orange')
+            plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,2], filetag=f'0_1219_{idx}_mocap_Z_Coordinate', y_min=0, y_max=0.25, color='green')
+            
+            plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,3], filetag=f'0_1219_{idx}_mocap_RX_Coordinate', y_min=-2.5, y_max=-2, color='blue')
+            plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,4], filetag=f'0_1219_{idx}_mocap_RY_Coordinate', y_min=-0.5, y_max=0.5, color='orange')
+            plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,5], filetag=f'0_1219_{idx}_mocap_RZ_Coordinate', y_min=-0.5, y_max=0.5, color='green')
+            
+            plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,0], filetag=f'0_1219_{idx}_slam_X_Coordinate', y_min=-0.5, y_max=0.5, color='blue')
+            plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,1], filetag=f'0_1219_{idx}_slam_Y_Coordinate', y_min=-0.4, y_max=-0.1, color='orange')
+            plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,2], filetag=f'0_1219_{idx}_slam_Z_Coordinate', y_min=0, y_max=0.25, color='green')
+            
+            plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,3], filetag=f'0_1219_{idx}_slam_RX_Coordinate', y_min=-2.5, y_max=-2, color='blue')
+            plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,4], filetag=f'0_1219_{idx}_slam_RY_Coordinate', y_min=-0.5, y_max=0.5, color='orange')
+            plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,5], filetag=f'0_1219_{idx}_slam_RZ_Coordinate', y_min=-0.5, y_max=0.5, color='green')
+            
+            #####################################################
             # check that all episodes have the same number of grippers 
             if n_grippers is None:
                 n_grippers = len(grippers)
@@ -120,6 +161,20 @@ def main(input, output, out_res, out_fov, compression_level,
                 episode_data[robot_name + '_gripper_width'] = np.expand_dims(gripper_widths, axis=-1).astype(np.float32)
                 episode_data[robot_name + '_demo_start_pose'] = demo_start_pose
                 episode_data[robot_name + '_demo_end_pose'] = demo_end_pose
+                
+                #####################################################
+                eef_pose_mocap = grippers_mocap[gripper_id]['tcp_pose']
+                # eef_pose_mocap = eef_pose_mocap[:eef_pose.shape[0]] ###################### double check this part v1
+                eef_pose_mocap = eef_pose_mocap[-eef_pose.shape[0]:] ###################### double check this part v2
+                
+                
+                
+                eef_pos_mocap = eef_pose_mocap[...,:3]
+                eef_rot_mocap = eef_pose_mocap[...,3:]
+                
+                episode_data[robot_name + '_eef_pos_mocap'] = eef_pos_mocap.astype(np.float32)
+                episode_data[robot_name + '_eef_rot_axis_angle_mocap'] = eef_rot_mocap.astype(np.float32)
+                #####################################################
             
             out_replay_buffer.add_episode(data=episode_data, compressors=None)
             
@@ -148,6 +203,7 @@ def main(input, output, out_res, out_fov, compression_level,
         all_videos.update(videos_dict.keys())
     
     print(f"{len(all_videos)} videos used in total!")
+    
     
     # get image size
     with av.open(vid_args[0][0]) as container:
