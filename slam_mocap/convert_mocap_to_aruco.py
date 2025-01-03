@@ -45,7 +45,8 @@ def get_mocap_plan():
             'umi_gripper_2024-12-11_23-18-23_blue_cup4_GX010050_blue_cup4.pkl',
             'umi_gripper_2024-12-11_23-19-42_blue_cup6_GX010052_blue_cup6.pkl',
             'umi_gripper_2024-12-11_23-20-06_blue_cup7_GX010054_blue_cup7.pkl',
-            'umi_gripper_2024-12-11_23-20-39_no_cup_GX010055_no_cup.pkl']
+            'umi_gripper_2024-12-11_23-20-39_no_cup_GX010055_no_cup.pkl'
+            ]
 
     # Iterate over each file in the directory
     plan = []

@@ -1,0 +1,1 @@
+python scripts_slam_pipeline/07_generate_replay_buffer.py -o GoPro_mapping1/dataset_correct_align_nocup.zarr.zip GoPro_mapping1

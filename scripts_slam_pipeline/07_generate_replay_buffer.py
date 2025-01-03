@@ -33,12 +33,45 @@ from diffusion_policy.common.replay_buffer import ReplayBuffer
 from diffusion_policy.codecs.imagecodecs_numcodecs import register_codecs, JpegXl
 
 from slam_mocap.convert_mocap_to_aruco import get_mocap_plan
-from slam_mocap.plot_xyz import plot_fn
+from slam_mocap.plot_xyz import plot_fn, plot_comparison
 
 register_codecs()
 
+def align_sequences(reference, target, max_shift=100):
+    """
+    Aligns the target sequence to the reference sequence by trying different shifts.
+    Computes the distance of the overlapped part for each shift.
 
+    Parameters:
+        reference (np.ndarray): The reference sequence.
+        target (np.ndarray): The target sequence to be aligned.
+        max_shift (int): The maximum number of shifts to try.
 
+    Returns:
+        int: The shift that results in the minimum mean squared difference.
+        float: The minimum mean squared difference of the overlapped part.
+    """
+    best_shift = 0
+    min_mse = float('inf')
+
+    for shift in range(-max_shift, max_shift + 1):
+        if shift > 0:
+            overlap_reference = reference[shift:]
+            overlap_target = target[:len(overlap_reference)]
+        else:
+            overlap_reference = reference[:len(target) + shift]
+            overlap_target = target[-shift:]
+
+        overlap_length = min(len(overlap_reference), len(overlap_target))
+        if overlap_length > 0:
+            overlap_reference = overlap_reference[:overlap_length]
+            overlap_target = overlap_target[:overlap_length]
+            mse = np.mean((overlap_reference - overlap_target) ** 2)
+            if mse < min_mse:
+                min_mse = mse
+                best_shift = shift
+
+    return best_shift, min_mse
 
 # %%
 @click.command()
@@ -101,12 +134,15 @@ def main(input, output, out_res, out_fov, compression_level,
         ################################################################################################################################
         mocap_plan = get_mocap_plan()
         del plan[9]
+        del plan[-1]
+        del mocap_plan[-1]
         assert len(plan) == len(mocap_plan)    
         ################################################################################################################################
         
         videos_dict = defaultdict(list)
         for idx, plan_episode in enumerate(plan):
             grippers = plan_episode['grippers']
+            
             
             #####################################################
             grippers_mocap = mocap_plan[idx]['grippers']
@@ -115,21 +151,135 @@ def main(input, output, out_res, out_fov, compression_level,
             print(grippers[0]['tcp_pose'])
             print(grippers_mocap[0]['tcp_pose'])
             
-            plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,0], filetag=f'0_1219_{idx}_mocap_X_Coordinate', y_min=-0.5, y_max=0.5, color='blue')
-            plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,1], filetag=f'0_1219_{idx}_mocap_Y_Coordinate', y_min=-0.4, y_max=-0.1, color='orange')
-            plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,2], filetag=f'0_1219_{idx}_mocap_Z_Coordinate', y_min=0, y_max=0.25, color='green')
             
-            plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,3], filetag=f'0_1219_{idx}_mocap_RX_Coordinate', y_min=-2.5, y_max=-2, color='blue')
-            plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,4], filetag=f'0_1219_{idx}_mocap_RY_Coordinate', y_min=-0.5, y_max=0.5, color='orange')
-            plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,5], filetag=f'0_1219_{idx}_mocap_RZ_Coordinate', y_min=-0.5, y_max=0.5, color='green')
+            # plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,0], filetag=f'0_1219_{idx}_mocap_X_Coordinate', y_min=-0.5, y_max=0.5, color='blue')
+            # plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,1], filetag=f'0_1219_{idx}_mocap_Y_Coordinate', y_min=-0.4, y_max=-0.1, color='orange')
+            # plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,2], filetag=f'0_1219_{idx}_mocap_Z_Coordinate', y_min=0, y_max=0.25, color='green')
             
-            plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,0], filetag=f'0_1219_{idx}_slam_X_Coordinate', y_min=-0.5, y_max=0.5, color='blue')
-            plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,1], filetag=f'0_1219_{idx}_slam_Y_Coordinate', y_min=-0.4, y_max=-0.1, color='orange')
-            plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,2], filetag=f'0_1219_{idx}_slam_Z_Coordinate', y_min=0, y_max=0.25, color='green')
+            # plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,3], filetag=f'0_1219_{idx}_mocap_RX_Coordinate', y_min=-2.5, y_max=-2, color='blue')
+            # plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,4], filetag=f'0_1219_{idx}_mocap_RY_Coordinate', y_min=-0.5, y_max=0.5, color='orange')
+            # plot_fn(range(len(grippers_mocap[0]['tcp_pose'])), grippers_mocap[0]['tcp_pose'][:,5], filetag=f'0_1219_{idx}_mocap_RZ_Coordinate', y_min=-0.5, y_max=0.5, color='green')
             
-            plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,3], filetag=f'0_1219_{idx}_slam_RX_Coordinate', y_min=-2.5, y_max=-2, color='blue')
-            plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,4], filetag=f'0_1219_{idx}_slam_RY_Coordinate', y_min=-0.5, y_max=0.5, color='orange')
-            plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,5], filetag=f'0_1219_{idx}_slam_RZ_Coordinate', y_min=-0.5, y_max=0.5, color='green')
+            # plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,0], filetag=f'0_1219_{idx}_slam_X_Coordinate', y_min=-0.5, y_max=0.5, color='blue')
+            # plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,1], filetag=f'0_1219_{idx}_slam_Y_Coordinate', y_min=-0.4, y_max=-0.1, color='orange')
+            # plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,2], filetag=f'0_1219_{idx}_slam_Z_Coordinate', y_min=0, y_max=0.25, color='green')
+            
+            # plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,3], filetag=f'0_1219_{idx}_slam_RX_Coordinate', y_min=-2.5, y_max=-2, color='blue')
+            # plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,4], filetag=f'0_1219_{idx}_slam_RY_Coordinate', y_min=-0.5, y_max=0.5, color='orange')
+            # plot_fn(range(len(grippers[0]['tcp_pose'])), grippers[0]['tcp_pose'][:,5], filetag=f'0_1219_{idx}_slam_RZ_Coordinate', y_min=-0.5, y_max=0.5, color='green')
+            
+            ##########################################################################################################
+            ## align sequences
+            ##########################################################################################################            
+            # grippers_mocap[0]['tcp_pose'] = grippers_mocap[0]['tcp_pose'][-grippers[0]['tcp_pose'].shape[0]:]
+            # grippers_mocap[0]['tcp_pose'] = grippers_mocap[0]['tcp_pose'][:grippers[0]['tcp_pose'].shape[0]]
+            
+            # Align the sequences using X Coordinate
+            shift, mse = align_sequences(grippers_mocap[0]['tcp_pose'][:, 0], grippers[0]['tcp_pose'][:, 0])
+            # pdb.set_trace()
+            # Adjust the timestamps for alignment
+            if shift > 0:
+                aligned_mocap = grippers_mocap[0]['tcp_pose'][shift:]
+                aligned_grippers = grippers[0]['tcp_pose'][:len(aligned_mocap)]
+                aligned_gripper_width = grippers[0]['gripper_width'][:len(aligned_mocap)]
+                
+                assert  np.sum(plan_episode['grippers'][0]['tcp_pose'][-1]-plan_episode['grippers'][0]['demo_end_pose']) < 1e-6
+                assert  np.sum(plan_episode['grippers'][0]['tcp_pose'][0]-plan_episode['grippers'][0]['demo_start_pose']) < 1e-6
+                
+                
+                grippers[0]['demo_start_pose'] = aligned_grippers[0]
+                grippers[0]['demo_end_pose'] = aligned_grippers[-1]
+                
+                video_start = plan_episode['cameras'][0]['video_start_end'][0]
+                video_end = plan_episode['cameras'][0]['video_start_end'][0] + len(aligned_grippers)
+                plan_episode['cameras'][0]['video_start_end'] = (video_start, video_end)
+                
+            else:
+                aligned_mocap = grippers_mocap[0]['tcp_pose'][:len(grippers[0]['tcp_pose']) + shift]
+                aligned_grippers = grippers[0]['tcp_pose'][-shift:]
+                aligned_gripper_width = grippers[0]['gripper_width'][-shift:]
+                
+                assert  np.sum(plan_episode['grippers'][0]['tcp_pose'][-1]-plan_episode['grippers'][0]['demo_end_pose']) < 1e-6
+                assert  np.sum(plan_episode['grippers'][0]['tcp_pose'][0]-plan_episode['grippers'][0]['demo_start_pose']) < 1e-6
+                
+                grippers[0]['demo_start_pose'] = aligned_grippers[0]
+                grippers[0]['demo_end_pose'] = aligned_grippers[-1]
+                
+                video_start = plan_episode['cameras'][0]['video_start_end'][0] - shift
+                video_end = plan_episode['cameras'][0]['video_start_end'][0] - shift + len(aligned_grippers)
+                plan_episode['cameras'][0]['video_start_end'] = (video_start, video_end)
+                
+            
+            if len(aligned_mocap) > len(aligned_grippers):
+                # aligned_mocap = aligned_mocap[:len(aligned_grippers)]
+                print(f"Warning: {len(aligned_mocap) - len(aligned_grippers)} frames of mocap data are discarded!")
+                continue
+                
+            
+            
+            grippers_mocap[0]['tcp_pose'] = aligned_mocap
+            grippers[0]['tcp_pose'] = aligned_grippers
+            grippers[0]['gripper_width'] = aligned_gripper_width
+            ##########################################################################################################            
+            
+            
+            
+            # Plot comparisons for each coordinate
+            num_points = range(len(grippers_mocap[0]['tcp_pose']))
+            plot_comparison(
+                num_points, 
+                grippers_mocap[0]['tcp_pose'][:, 0], 
+                grippers[0]['tcp_pose'][:, 0], 
+                filetag=f'X_Coordinate_Comparison_{idx}', 
+                y_min=-0.5, 
+                y_max=0.5
+            )
+
+            plot_comparison(
+                num_points, 
+                grippers_mocap[0]['tcp_pose'][:, 1], 
+                grippers[0]['tcp_pose'][:, 1], 
+                filetag=f'Y_Coordinate_Comparison_{idx}', 
+                y_min=-0.4, 
+                y_max=0
+            )
+
+            plot_comparison(
+                num_points, 
+                grippers_mocap[0]['tcp_pose'][:, 2], 
+                grippers[0]['tcp_pose'][:, 2], 
+                filetag=f'Z_Coordinate_Comparison_{idx}', 
+                y_min=0, 
+                y_max=1
+            )
+
+            plot_comparison(
+                num_points, 
+                grippers_mocap[0]['tcp_pose'][:, 3], 
+                grippers[0]['tcp_pose'][:, 3], 
+                filetag=f'RX_Coordinate_Comparison_{idx}', 
+                y_min=-2.5, 
+                y_max=0
+            )
+
+            plot_comparison(
+                num_points, 
+                grippers_mocap[0]['tcp_pose'][:, 4], 
+                grippers[0]['tcp_pose'][:, 4], 
+                filetag=f'RY_Coordinate_Comparison_{idx}', 
+                y_min=-0.5, 
+                y_max=0.5
+            )
+
+            plot_comparison(
+                num_points, 
+                grippers_mocap[0]['tcp_pose'][:, 5], 
+                grippers[0]['tcp_pose'][:, 5], 
+                filetag=f'RZ_Coordinate_Comparison_{idx}', 
+                y_min=-0.5, 
+                y_max=0.5
+            )
+
             
             #####################################################
             # check that all episodes have the same number of grippers 
@@ -165,8 +315,7 @@ def main(input, output, out_res, out_fov, compression_level,
                 #####################################################
                 eef_pose_mocap = grippers_mocap[gripper_id]['tcp_pose']
                 # eef_pose_mocap = eef_pose_mocap[:eef_pose.shape[0]] ###################### double check this part v1
-                eef_pose_mocap = eef_pose_mocap[-eef_pose.shape[0]:] ###################### double check this part v2
-                
+                # eef_pose_mocap = eef_pose_mocap[-eef_pose.shape[0]:] ###################### double check this part v2
                 
                 
                 eef_pos_mocap = eef_pose_mocap[...,:3]
@@ -175,6 +324,7 @@ def main(input, output, out_res, out_fov, compression_level,
                 episode_data[robot_name + '_eef_pos_mocap'] = eef_pos_mocap.astype(np.float32)
                 episode_data[robot_name + '_eef_rot_axis_angle_mocap'] = eef_rot_mocap.astype(np.float32)
                 #####################################################
+            
             
             out_replay_buffer.add_episode(data=episode_data, compressors=None)
             
@@ -209,6 +359,7 @@ def main(input, output, out_res, out_fov, compression_level,
     with av.open(vid_args[0][0]) as container:
         in_stream = container.streams.video[0]
         ih, iw = in_stream.height, in_stream.width
+    
     
     # dump images
     img_compressor = JpegXl(level=compression_level, numthreads=1)
